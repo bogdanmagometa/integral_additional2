@@ -8,10 +8,7 @@
 
 #include "conf.h"
 
-void concurrent_integration(const Config &conf, double (*func_to_integrate)(double, double),
-                            double &outCalculatedIntegral, double &outAbsError, double &outRelError);
-
-void mt_integration(const Config &conf, double (*func_to_integrate)(double, double),
+void tbb_integration(const Config &conf, double (*func_to_integrate)(double, double),
                     double &outCalculatedIntegral, double &outAbsError, double &outRelError);
 
 

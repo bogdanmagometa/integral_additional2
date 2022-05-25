@@ -1,65 +1,12 @@
 #include "integration.h"
 
-#include <vector>
 #include <cmath>
 #include <limits>
 #include <thread>
 #include <oneapi/tbb/flow_graph.h>
-#include <atomic>
-
-#define DEBUG_OUTPUT
 
 static double sum_over(double (*func_to_sum)(double, double), double x_start, double x_end, double delta_x,
                 double y_start, double y_end, double delta_y);
-static void sum_over_with_output_parameter(double (*func_to_sum)(double, double), double x_start, double x_end, double delta_x,
-                                           double y_start, double y_end, double delta_y, double &outSum);
-static void join_threads(std::vector<std::thread> &threads);
-static void single_thread_job(double (*func_to_integrate)(double, double), int first_column,
-                       int num_columns_to_integrate, const Config &conf, double delta_x, double delta_y,
-                       double &outIntegrationResult);
-
-void concurrent_integration(const Config &conf, double (*func_to_integrate)(double, double),
-                            double &outCalculatedIntegral, double &outAbsError, double &outRelError) {
-    double integral_val;
-    double delta_x = (conf.x_end - conf.x_start) / conf.init_steps_x;
-    double delta_y = (conf.y_end - conf.y_start) / conf.init_steps_y;
-
-    integral_val = sum_over(func_to_integrate, conf.x_start, conf.x_end, delta_x,
-                            conf.y_start, conf.y_end, delta_y) * delta_x * delta_y;
-
-    int num_iter = 0; // TODO: or 1?
-    bool to_continue = true;
-    while (to_continue) {
-#ifdef DEBUG_OUTPUT
-        std::cout << "Integral on iteration #" << num_iter << " = " << integral_val << std::endl;
-#endif
-        double prev_integral_val = integral_val;
-
-        double sum = sum_over(func_to_integrate, conf.x_start + delta_x / 2.0, conf.x_end,
-                              delta_x, conf.y_start, conf.y_end, delta_y);
-        delta_x /= 2.0;
-        integral_val = delta_x * delta_y * sum + integral_val / 2.0;
-
-        sum = sum_over(func_to_integrate, conf.x_start, conf.x_end, delta_x,
-                       conf.y_start + delta_y/ 2.0, conf.y_end, delta_y);
-        delta_y /= 2.0;
-        integral_val = delta_x * delta_y * sum + integral_val / 2.0;
-
-        outAbsError = std::abs(integral_val - prev_integral_val);
-
-        if (prev_integral_val == 0.0) { // division by 0.0 is UB
-            outRelError = std::numeric_limits<double>::infinity();
-        } else {
-            outRelError = outAbsError / std::abs(prev_integral_val);
-        }
-        to_continue = false;
-        to_continue |= (outAbsError > conf.abs_err);
-        to_continue |= (outRelError > conf.rel_err);
-        ++num_iter;
-        to_continue &= (conf.max_iter > num_iter);
-    }
-    outCalculatedIntegral = integral_val;
-}
 
 struct integration_descr {
     double start_x;
@@ -86,7 +33,7 @@ private:
     std::mutex m;
 };
 
-void mt_integration(const Config &conf, double (*func_to_integrate)(double, double),
+void tbb_integration(const Config &conf, double (*func_to_integrate)(double, double),
                     double &outCalculatedIntegral, double &outAbsError, double &outRelError) {
     namespace fl = oneapi::tbb::flow;
     using multi_node = fl::multifunction_node<integration_descr,
@@ -120,9 +67,6 @@ void mt_integration(const Config &conf, double (*func_to_integrate)(double, doub
     fl::make_edge(std::get<0>(splitter.output_ports()), calculator);
     fl::make_edge(calculator, summer_node);
 
-    std::vector<std::thread> threads;
-    threads.reserve(conf.n_threads);
-
     int steps_x = conf.init_steps_x;
     int steps_y = conf.init_steps_y;
     double width = conf.x_end - conf.x_start;
@@ -144,7 +88,6 @@ void mt_integration(const Config &conf, double (*func_to_integrate)(double, doub
 #ifdef DEBUG_OUTPUT
         std::cout << "Integral on iteration #" << n_iter << " = " << outCalculatedIntegral << std::endl;
 #endif
-        threads.clear();
         double prev_integral_val = outCalculatedIntegral;
 
         steps_x *= 2;
@@ -181,26 +124,4 @@ static double sum_over(double (*func_to_sum)(double, double), double x_start, do
         }
     }
     return sum;
-}
-static void sum_over_with_output_parameter(double (*func_to_sum)(double, double), double x_start, double x_end, double delta_x,
-                                    double y_start, double y_end, double delta_y, double &outSum) {
-    outSum = sum_over(func_to_sum, x_start, x_end, delta_x, y_start, y_end, delta_y);
-}
-
-static void join_threads(std::vector<std::thread> &threads) {
-    for (std::thread &cur_thread: threads) {
-        cur_thread.join();
-    }
-}
-
-static void single_thread_job(double (*func_to_integrate)(double, double), int first_column,
-                       int num_columns_to_integrate, const Config &conf, double delta_x, double delta_y,
-                       double &outIntegrationResult) {
-    outIntegrationResult = 0;
-    double x_begin = conf.x_start + first_column * delta_x;
-    outIntegrationResult = sum_over(func_to_integrate, x_begin, x_begin + num_columns_to_integrate * delta_x,
-                                    delta_x, conf.y_start + delta_y / 2, conf.y_end, delta_y);
-    outIntegrationResult += sum_over(func_to_integrate, x_begin + delta_x / 2, x_begin + num_columns_to_integrate * delta_x,
-                                     delta_x, conf.y_start, conf.y_end, delta_y / 2);
-    outIntegrationResult *= delta_x * delta_y / 4;
 }
