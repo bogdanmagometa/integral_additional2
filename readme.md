@@ -1,4 +1,4 @@
-# Lab work 2: Parallelization of evaluation of integral of a given function
+# Lab work 2: Parallelization of evaluation of integral of a given function using oneAPI TBB flow graphs
 Author: <a href="https://github.com/bogdanmagometa">Bohdan Mahometa</a><br>
 Variant: 4 (Langermann function)
 
@@ -8,8 +8,9 @@ The following tools need to be available in order to use the project:
 - GCC
 - Cmake and Make
 - Boost library (Boost::program_options Boost::system are used in the project)
-- pip
-- Python 3
+- oneAPI TBB
+- Python 3 (if you want to use scripts)
+- `numpy`, `matplotlib` and `mplcyberpunk` Python packages if you want to run `plotter.py`
 
 ### Compilation
 
@@ -39,7 +40,6 @@ The content of ```<path-to-configuration-file>``` should be in TOML format with 
 set of specified arguments:
 - abs_err - desired absolute error
 - rel_err - desired relative error
-- n_threads - number of threads. 0 means single-threaded version
 - x_start - left bound of integration along x axis
 - x_end - right bound of integration along x axis
 - y_start - lower bound of integration along y axis
@@ -78,19 +78,27 @@ haven't been fixed by me deliberately.
 
 ### Results
 
-I ran the executable several times for each value of n_threads argument from 0 through 20.
-The following were other values of arguments in configuration file:
-- abs_err = 0.0000005
-- rel_err = 0.00002
-- x_start = -10
-- x_end = 10
-- y_start = -10
-- y_end = 10
-- init_steps_x = 100
-- init_steps_y = 100
-- max_iter = 10
+I ran the executable several times with the following configuration file:
+```toml
+abs_err = 0.0000005
+rel_err = 0.00002
+x_start = -10
+x_end = 10
+y_start = -10
+y_end = 10
+init_steps_x = 100
+init_steps_y = 100
+max_iter = 10
+```
 
-I got the following relation between number of threads and execution time:
+Among all runs, the minimum execution time was `10258938` seconds.
+
+The following chart compares 
+<b style="color: #add8e6;">oneAPI TBB flow graphs impelementation</b> vs
+<b style="color: yellow;">CUDA implementation</b> vs
+<b style="color: #4cec30;">implementation with thread objects</b> vs
+<b style="color: red;">concurrent implementation</b>:
+
 
 ![Relationship between ](./img/time_plot.png)
 
