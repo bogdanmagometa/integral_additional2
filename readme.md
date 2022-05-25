@@ -103,5 +103,3 @@ The following chart compares
 ![Relationship between ](./img/time_plot.png)
 
 # Additional tasks
-
-Not yet
